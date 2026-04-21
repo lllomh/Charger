@@ -1,0 +1,29 @@
+
+
+#!/bin/sh
+
+COMMIT_MSG_FILE=$1
+MSG=$(head -n1 "$COMMIT_MSG_FILE")
+
+EMOJI=""
+
+case "$MSG" in
+  feat:*) EMOJI="✨" ;;
+  fix:*) EMOJI="🐛" ;;
+  docs:*) EMOJI="📝" ;;
+  style:*) EMOJI="💄" ;;
+  refactor:*) EMOJI="♻️" ;;
+  perf:*) EMOJI="⚡️" ;;
+  test:*) EMOJI="✅" ;;
+  build:*) EMOJI="📦️" ;;
+  ci:*) EMOJI="🎡" ;;
+  revert:*) EMOJI="⏪️" ;;
+  chore:*) EMOJI="🔨" ;;
+esac
+
+if [ -n "$EMOJI" ] && [ "${MSG#"$EMOJI "}" = "$MSG" ]; then
+  sed -i '' -e "1s/^/$EMOJI /" "$COMMIT_MSG_FILE"
+fi
+
+# 👉 再校验
+# pnpm commitlint --edit $1

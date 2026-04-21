@@ -1,0 +1,10 @@
+# echo "🔍 Running type check..."
+# pnpm type-check
+
+# 暂时禁用 lint 检查和构建检查
+# 后续统一启用时取消注释下面几行
+# echo "🔍 Running lint..."
+# pnpm lint
+
+# echo "🏗️  Running build check..."
+# pnpm build:check

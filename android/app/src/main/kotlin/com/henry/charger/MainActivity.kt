@@ -1,0 +1,114 @@
+package com.henry.charger
+
+import android.app.ActivityManager
+import android.app.KeyguardManager
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import android.os.Bundle
+import android.view.WindowManager
+import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.MethodChannel
+
+class MainActivity : FlutterActivity() {
+    private val kioskChannel = "com.henry.charger/kiosk"
+    private val requestExitCode = 4242
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+            val km = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+            if (km.isKeyguardLocked) {
+                km.requestDismissKeyguard(this, null)
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            window.addFlags(
+                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
+                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
+                WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
+            )
+        }
+    }
+
+    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+        super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, kioskChannel)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "startKiosk" -> {
+                        try {
+                            if (!isKioskActive()) startLockTask()
+                            result.success(isKioskActive())
+                        } catch (e: Exception) {
+                            result.error("KIOSK_FAILED", e.message, null)
+                        }
+                    }
+                    "isKioskActive" -> result.success(isKioskActive())
+                    "requestExit" -> handleRequestExit(result)
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    private fun handleRequestExit(result: MethodChannel.Result) {
+        val km = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+        if (!km.isKeyguardSecure) {
+            // 设备未设锁屏密码，直接退出
+            exitApp()
+            result.success(true)
+            return
+        }
+        @Suppress("DEPRECATION")
+        val intent: Intent? = km.createConfirmDeviceCredentialIntent(
+            "退出充电动画",
+            "请输入锁屏密码以退出"
+        )
+        if (intent != null) {
+            startActivityForResult(intent, requestExitCode)
+            result.success(true)
+        } else {
+            result.success(false)
+        }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == requestExitCode && resultCode == RESULT_OK) {
+            exitApp()
+        }
+    }
+
+    private fun exitApp() {
+        try {
+            if (isKioskActive()) stopLockTask()
+        } catch (_: Exception) {
+        }
+        finishAndRemoveTask()
+    }
+
+    private fun isKioskActive(): Boolean {
+        val am = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            am.lockTaskModeState != ActivityManager.LOCK_TASK_MODE_NONE
+        } else {
+            @Suppress("DEPRECATION")
+            am.isInLockTaskMode
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (!isKioskActive()) {
+            try {
+                startLockTask()
+            } catch (_: Exception) {
+            }
+        }
+    }
+}

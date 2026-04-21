@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Outer glow ring -->
+    <path
+        android:strokeColor="#3300E5FF"
+        android:strokeWidth="1.2"
+        android:pathData="M54,22 a32,32 0 1,0 0.1,0 Z" />
+
+    <!-- Main cyan circle -->
+    <path
+        android:strokeColor="#00E5FF"
+        android:strokeWidth="2"
+        android:pathData="M54,28 a26,26 0 1,0 0.1,0 Z" />
+
+    <!-- Inner faint rim -->
+    <path
+        android:strokeColor="#6600E5FF"
+        android:strokeWidth="0.8"
+        android:pathData="M54,32 a22,22 0 1,0 0.1,0 Z" />
+
+    <!-- Lightning bolt filled -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M58,38 L46,58 L54,58 L50,72 L64,50 L56,50 Z" />
+
+    <!-- Lightning bolt cyan glow -->
+    <path
+        android:fillColor="#B300E5FF"
+        android:pathData="M59,37 L45,58.5 L53.5,58.5 L49,73 L65,49.5 L56.5,49.5 Z" />
+
+    <!-- Orbiting particles -->
+    <path
+        android:fillColor="#00E5FF"
+        android:pathData="M54,18 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0 Z" />
+    <path
+        android:fillColor="#CC00E5FF"
+        android:pathData="M90,54 m-1.5,0 a1.5,1.5 0 1,0 3,0 a1.5,1.5 0 1,0 -3,0 Z" />
+    <path
+        android:fillColor="#CC00E5FF"
+        android:pathData="M18,54 m-1.5,0 a1.5,1.5 0 1,0 3,0 a1.5,1.5 0 1,0 -3,0 Z" />
+    <path
+        android:fillColor="#9900E5FF"
+        android:pathData="M54,90 m-1.5,0 a1.5,1.5 0 1,0 3,0 a1.5,1.5 0 1,0 -3,0 Z" />
+    <path
+        android:fillColor="#9900E5FF"
+        android:pathData="M78,30 m-1,0 a1,1 0 1,0 2,0 a1,1 0 1,0 -2,0 Z" />
+    <path
+        android:fillColor="#9900E5FF"
+        android:pathData="M30,78 m-1,0 a1,1 0 1,0 2,0 a1,1 0 1,0 -2,0 Z" />
+</vector>
