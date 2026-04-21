@@ -1,6 +1,6 @@
 # charger
 
-A new Flutter project.
+Charger app for phone
 
 ## Getting Started
 
