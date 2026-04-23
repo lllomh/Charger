@@ -4,12 +4,14 @@ import android.app.ActivityManager
 import android.app.KeyguardManager
 import android.content.Context
 import android.content.Intent
+import android.os.BatteryManager
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.io.File
 
 class MainActivity : FlutterActivity() {
     private val kioskChannel = "com.henry.charger/kiosk"
@@ -50,6 +52,7 @@ class MainActivity : FlutterActivity() {
                     }
                     "isKioskActive" -> result.success(isKioskActive())
                     "requestExit" -> handleRequestExit(result)
+                    "getFinePercent" -> result.success(computeFinePercent())
                     else -> result.notImplemented()
                 }
             }
@@ -90,6 +93,35 @@ class MainActivity : FlutterActivity() {
         } catch (_: Exception) {
         }
         finishAndRemoveTask()
+    }
+
+    private fun computeFinePercent(): Double? {
+        return try {
+            val bm = getSystemService(Context.BATTERY_SERVICE) as BatteryManager
+            val counter = bm.getLongProperty(BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER)
+            if (counter <= 0L) return null
+            val full = readChargeFullUah() ?: return null
+            val pct = counter.toDouble() / full.toDouble() * 100.0
+            if (pct.isFinite() && pct in 0.0..100.0) pct else null
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    private fun readChargeFullUah(): Long? {
+        val candidates = listOf(
+            "/sys/class/power_supply/battery/charge_full",
+            "/sys/class/power_supply/battery/charge_full_design",
+            "/sys/class/power_supply/bms/charge_full"
+        )
+        for (p in candidates) {
+            try {
+                val v = File(p).readText().trim().toLongOrNull() ?: continue
+                if (v > 0) return v
+            } catch (_: Throwable) {
+            }
+        }
+        return null
     }
 
     private fun isKioskActive(): Boolean {
