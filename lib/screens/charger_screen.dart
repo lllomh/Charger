@@ -41,6 +41,8 @@ class _ChargerScreenState extends State<ChargerScreen>
 
   Timer? _fractionTimer;
   String _fractionDigits = '0000000';
+  double? _finePercent;
+  bool? _fineSupported;
 
   static const _rotFastDuration = Duration(seconds: 4);
   static const _rotSlowDuration = Duration(seconds: 20);
@@ -92,10 +94,7 @@ class _ChargerScreenState extends State<ChargerScreen>
       _breathController
         ..duration = _breathFastDuration
         ..repeat(reverse: true);
-      _fractionTimer ??= Timer.periodic(
-        const Duration(milliseconds: 80),
-        (_) => _tickFraction(),
-      );
+      _startReadingTimer();
     } else {
       _rotationController
         ..duration = _rotSlowDuration
@@ -105,16 +104,49 @@ class _ChargerScreenState extends State<ChargerScreen>
         ..repeat(reverse: true);
       _fractionTimer?.cancel();
       _fractionTimer = null;
-      setState(() => _fractionDigits = '0000000');
+      setState(() {
+        _fractionDigits = '0000000';
+        _finePercent = null;
+      });
     }
   }
 
-  void _tickFraction() {
+  Future<void> _startReadingTimer() async {
+    if (_fineSupported == null) {
+      final pct = await _readFinePercent();
+      _fineSupported = pct != null;
+      if (pct != null && mounted) {
+        setState(() => _finePercent = pct);
+      }
+    }
+    _fractionTimer?.cancel();
+    final period = _fineSupported == true
+        ? const Duration(seconds: 1)
+        : const Duration(milliseconds: 80);
+    _fractionTimer = Timer.periodic(period, (_) => _tickFraction());
+  }
+
+  Future<double?> _readFinePercent() async {
+    try {
+      return await _kioskChannel.invokeMethod<double>('getFinePercent');
+    } on PlatformException {
+      return null;
+    }
+  }
+
+  Future<void> _tickFraction() async {
+    if (_fineSupported == true) {
+      final pct = await _readFinePercent();
+      if (pct != null && mounted) {
+        setState(() => _finePercent = pct);
+      }
+      return;
+    }
     final buf = StringBuffer();
     for (var i = 0; i < 7; i++) {
       buf.write(_rng.nextInt(10));
     }
-    setState(() => _fractionDigits = buf.toString());
+    if (mounted) setState(() => _fractionDigits = buf.toString());
   }
 
   Future<void> _startService() async {
@@ -268,11 +300,15 @@ class _ChargerScreenState extends State<ChargerScreen>
                     ]),
                     builder: (context, _) {
                       final battery = context.watch<BatteryProvider>();
+                      final text = !battery.isCharging
+                          ? '${battery.level}%'
+                          : (_finePercent != null
+                              ? '${_finePercent!.toStringAsFixed(2)}%'
+                              : '${battery.level}.$_fractionDigits%');
                       return CustomPaint(
                         painter: ParticlePainter(
                           particles: List.of(_particles),
-                          displayText:
-                              '${battery.level}.$_fractionDigits%',
+                          displayText: text,
                           glowPulse: _pulseController.value,
                           rotation: _rotationController.value * 2 * math.pi,
                           breath: _breathController.value,
