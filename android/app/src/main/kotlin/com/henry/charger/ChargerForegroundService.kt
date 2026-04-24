@@ -2,8 +2,10 @@ package com.henry.charger
 
 import android.app.*
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.*
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
 
 class ChargerForegroundService : Service() {
     private lateinit var wakeLock: PowerManager.WakeLock
@@ -13,7 +15,16 @@ class ChargerForegroundService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        startForeground(notifId, buildNotification())
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            ServiceCompat.startForeground(
+                this,
+                notifId,
+                buildNotification(),
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+            )
+        } else {
+            startForeground(notifId, buildNotification())
+        }
         acquireWakeLock()
         wakeScreenAndLaunchActivity()
     }
