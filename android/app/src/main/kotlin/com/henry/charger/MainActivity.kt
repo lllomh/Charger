@@ -168,9 +168,11 @@ class MainActivity : FlutterActivity() {
         val intent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
 
         sb.appendLine("=== BatteryManager ===")
-        sb.appendLine("CURRENT_NOW: ${bm.getLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)} µA")
-        sb.appendLine("CURRENT_AVG: ${bm.getLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_AVERAGE)} µA")
+        fun fmt(v: Long) = if (v == Long.MIN_VALUE) "not supported" else "$v µA"
+        sb.appendLine("CURRENT_NOW: ${fmt(bm.getLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW))}")
+        sb.appendLine("CURRENT_AVG: ${fmt(bm.getLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_AVERAGE))}")
         sb.appendLine("VOLTAGE(intent): ${intent?.getIntExtra(BatteryManager.EXTRA_VOLTAGE, -1)} mV")
+        sb.appendLine("BATTERY_LEVEL: ${bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)}%")
 
         val sysfsPaths = listOf(
             "/sys/class/power_supply/battery/current_now",
