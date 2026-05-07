@@ -4,6 +4,7 @@ import android.app.ActivityManager
 import android.app.KeyguardManager
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.BatteryManager
 import android.os.Build
 import android.os.Bundle
@@ -12,6 +13,7 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
+import kotlin.math.abs
 
 class MainActivity : FlutterActivity() {
     private val kioskChannel = "com.henry.charger/kiosk"
@@ -53,6 +55,7 @@ class MainActivity : FlutterActivity() {
                     "isKioskActive" -> result.success(isKioskActive())
                     "requestExit" -> handleRequestExit(result)
                     "getFinePercent" -> result.success(computeFinePercent())
+                    "getPowerWatts" -> result.success(computePowerWatts())
                     else -> result.notImplemented()
                 }
             }
@@ -103,6 +106,22 @@ class MainActivity : FlutterActivity() {
             val full = readChargeFullUah() ?: return null
             val pct = counter.toDouble() / full.toDouble() * 100.0
             if (pct.isFinite() && pct in 0.0..100.0) pct else null
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    private fun computePowerWatts(): Double? {
+        return try {
+            val bm = getSystemService(Context.BATTERY_SERVICE) as BatteryManager
+            val currentMicroA = bm.getLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)
+            if (currentMicroA == Long.MIN_VALUE) return null
+            val batteryIntent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+                ?: return null
+            val voltageMv = batteryIntent.getIntExtra(BatteryManager.EXTRA_VOLTAGE, -1)
+            if (voltageMv <= 0) return null
+            val watts = abs(currentMicroA) / 1_000_000.0 * voltageMv / 1000.0
+            if (watts.isFinite() && watts >= 0) watts else null
         } catch (_: Throwable) {
             null
         }
