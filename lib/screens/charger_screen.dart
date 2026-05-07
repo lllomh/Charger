@@ -162,6 +162,29 @@ class _ChargerScreenState extends State<ChargerScreen>
     _powerTimer = Timer.periodic(const Duration(seconds: 2), (_) => _updatePower());
   }
 
+  Future<void> _showPowerDebug() async {
+    try {
+      final info = await _kioskChannel.invokeMethod<String>('getPowerDebug');
+      if (!mounted || info == null) return;
+      showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF0A1628),
+          title: const Text('Power Debug', style: TextStyle(color: Colors.cyanAccent, fontSize: 14)),
+          content: SingleChildScrollView(
+            child: Text(info, style: const TextStyle(color: Colors.white70, fontSize: 11, fontFamily: 'monospace')),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('关闭', style: TextStyle(color: Colors.cyanAccent)),
+            ),
+          ],
+        ),
+      );
+    } on PlatformException {/* ignore */}
+  }
+
   Future<void> _updatePower() async {
     try {
       final w = await _kioskChannel.invokeMethod<double>('getPowerWatts');
@@ -377,12 +400,15 @@ class _ChargerScreenState extends State<ChargerScreen>
                 right: 0,
                 bottom: 30,
                 child: Center(
-                  child: Text(
-                    '长按屏幕 3 秒退出',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.35),
-                      fontSize: 12,
-                      letterSpacing: 1.2,
+                  child: GestureDetector(
+                    onDoubleTap: _showPowerDebug,
+                    child: Text(
+                      '长按屏幕 3 秒退出',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.35),
+                        fontSize: 12,
+                        letterSpacing: 1.2,
+                      ),
                     ),
                   ),
                 ),
