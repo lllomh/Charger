@@ -44,6 +44,9 @@ class _ChargerScreenState extends State<ChargerScreen>
   double? _finePercent;
   bool? _fineSupported;
 
+  Timer? _powerTimer;
+  double? _powerWatts;
+
   static const _rotFastDuration = Duration(seconds: 4);
   static const _rotSlowDuration = Duration(seconds: 20);
   static const _breathFastDuration = Duration(milliseconds: 2400);
@@ -95,6 +98,7 @@ class _ChargerScreenState extends State<ChargerScreen>
         ..duration = _breathFastDuration
         ..repeat(reverse: true);
       _startReadingTimer();
+      _startPowerTimer();
     } else {
       _rotationController
         ..duration = _rotSlowDuration
@@ -104,9 +108,12 @@ class _ChargerScreenState extends State<ChargerScreen>
         ..repeat(reverse: true);
       _fractionTimer?.cancel();
       _fractionTimer = null;
+      _powerTimer?.cancel();
+      _powerTimer = null;
       setState(() {
         _fractionDigits = '0000000';
         _finePercent = null;
+        _powerWatts = null;
       });
     }
   }
@@ -147,6 +154,21 @@ class _ChargerScreenState extends State<ChargerScreen>
       buf.write(_rng.nextInt(10));
     }
     if (mounted) setState(() => _fractionDigits = buf.toString());
+  }
+
+  void _startPowerTimer() {
+    _updatePower();
+    _powerTimer?.cancel();
+    _powerTimer = Timer.periodic(const Duration(seconds: 2), (_) => _updatePower());
+  }
+
+  Future<void> _updatePower() async {
+    try {
+      final w = await _kioskChannel.invokeMethod<double>('getPowerWatts');
+      if (w != null && mounted) setState(() => _powerWatts = w);
+    } on PlatformException {
+      // not supported on this device
+    }
   }
 
   Future<void> _startService() async {
@@ -268,6 +290,7 @@ class _ChargerScreenState extends State<ChargerScreen>
     _exitHoldTimer?.cancel();
     _progressTicker?.cancel();
     _fractionTimer?.cancel();
+    _powerTimer?.cancel();
     _particleController.dispose();
     _pulseController.dispose();
     _rotationController.dispose();
@@ -309,6 +332,7 @@ class _ChargerScreenState extends State<ChargerScreen>
                         painter: ParticlePainter(
                           particles: List.of(_particles),
                           displayText: text,
+                          powerWatts: _powerWatts,
                           glowPulse: _pulseController.value,
                           rotation: _rotationController.value * 2 * math.pi,
                           breath: _breathController.value,

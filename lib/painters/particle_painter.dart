@@ -9,6 +9,7 @@ class ParticlePainter extends CustomPainter {
   final double glowPulse;
   final double rotation;
   final double breath;
+  final double? powerWatts;
 
   const ParticlePainter({
     required this.particles,
@@ -16,6 +17,7 @@ class ParticlePainter extends CustomPainter {
     required this.glowPulse,
     required this.rotation,
     required this.breath,
+    this.powerWatts,
   });
 
   static const double circleRadius = 110.0;
@@ -34,7 +36,9 @@ class ParticlePainter extends CustomPainter {
     _drawSweepArc(canvas, center);
     _drawBorder(canvas, center);
     _drawInnerRim(canvas, center);
+    _drawPowerGauge(canvas, center);
     _drawText(canvas, center);
+    _drawPowerText(canvas, center);
   }
 
   void _drawParticles(Canvas canvas) {
@@ -198,6 +202,94 @@ class ParticlePainter extends CustomPainter {
     canvas.drawParagraph(
       paragraph,
       center.translate(-width / 2, -paragraph.height / 2),
+    );
+  }
+
+  // Gauge spans 150° centered at bottom of circle (165° → 15° counterclockwise)
+  static const _gaugeStart = 11 * math.pi / 12; // 165°
+  static const _gaugeSweep = -5 * math.pi / 6;  // -150°
+  static const _maxWatts = 65.0;
+
+  void _drawPowerGauge(Canvas canvas, Offset center) {
+    if (powerWatts == null) return;
+    final ratio = (powerWatts! / _maxWatts).clamp(0.0, 1.0);
+
+    final gaugeRadius = circleRadius + 6.0;
+    final rect = Rect.fromCircle(center: center, radius: gaugeRadius);
+
+    // Background track
+    canvas.drawArc(
+      rect, _gaugeStart, _gaugeSweep, false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3.5
+        ..strokeCap = StrokeCap.round
+        ..color = Colors.white.withValues(alpha: 0.10),
+    );
+
+    if (ratio <= 0) return;
+
+    final fillSweep = _gaugeSweep * ratio;
+    // cyan at low power, orange at full power (matches EV behaviour)
+    final color = Color.lerp(
+      const Color(0xFF00E5FF), const Color(0xFFFF8800), ratio)!;
+
+    // Glow pass
+    canvas.drawArc(
+      rect, _gaugeStart, fillSweep, false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 6.0
+        ..strokeCap = StrokeCap.round
+        ..color = color.withValues(alpha: 0.28)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+    );
+    // Solid pass
+    canvas.drawArc(
+      rect, _gaugeStart, fillSweep, false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3.5
+        ..strokeCap = StrokeCap.round
+        ..color = color,
+    );
+
+    // Bright dot at tip
+    final tipAngle = _gaugeStart + fillSweep;
+    final tip = center +
+        Offset(gaugeRadius * math.cos(tipAngle), gaugeRadius * math.sin(tipAngle));
+    canvas.drawCircle(
+      tip, 4.0,
+      Paint()
+        ..color = color
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+    );
+  }
+
+  void _drawPowerText(Canvas canvas, Offset center) {
+    if (powerWatts == null) return;
+    final ratio = (powerWatts! / _maxWatts).clamp(0.0, 1.0);
+    final color = Color.lerp(const Color(0xFF00E5FF), const Color(0xFFFF8800), ratio)!;
+
+    final label = powerWatts! >= 10
+        ? '${powerWatts!.toStringAsFixed(1)} W'
+        : '${powerWatts!.toStringAsFixed(2)} W';
+
+    const width = 140.0;
+    final builder = ui.ParagraphBuilder(
+        ui.ParagraphStyle(textAlign: TextAlign.center, fontSize: 13))
+      ..pushStyle(ui.TextStyle(
+        color: color,
+        fontSize: 13,
+        fontWeight: FontWeight.w500,
+        shadows: [Shadow(color: color, blurRadius: 10)],
+      ))
+      ..addText(label);
+    final para = builder.build()..layout(const ui.ParagraphConstraints(width: width));
+
+    canvas.drawParagraph(
+      para,
+      center.translate(-width / 2, circleRadius + 16),
     );
   }
 
