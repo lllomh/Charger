@@ -56,6 +56,7 @@ class MainActivity : FlutterActivity() {
                     "requestExit" -> handleRequestExit(result)
                     "getFinePercent" -> result.success(computeFinePercent())
                     "getPowerWatts" -> result.success(computePowerWatts())
+                    "getPowerDebug" -> result.success(collectPowerDebug())
                     else -> result.notImplemented()
                 }
             }
@@ -113,35 +114,100 @@ class MainActivity : FlutterActivity() {
 
     private fun computePowerWatts(): Double? {
         return try {
+            // Priority 1: USB/AC input side (reflects actual charger wattage)
+            val usbCurrentUa = readSysfsLong(listOf(
+                "/sys/class/power_supply/usb/input_current_now",
+                "/sys/class/power_supply/usb/current_now",
+                "/sys/class/power_supply/ac/current_now",
+                "/sys/class/power_supply/Charging_Cable/current_now",
+                "/sys/class/power_supply/qpnp-dc/current_now",
+            ))
+            val usbVoltageUv = readSysfsLong(listOf(
+                "/sys/class/power_supply/usb/voltage_now",
+                "/sys/class/power_supply/ac/voltage_now",
+                "/sys/class/power_supply/Charging_Cable/voltage_now",
+                "/sys/class/power_supply/qpnp-dc/voltage_now",
+            ))
+            if (usbCurrentUa != null && usbVoltageUv != null && usbVoltageUv > 0) {
+                val w = abs(usbCurrentUa) / 1_000_000.0 * usbVoltageUv / 1_000_000.0
+                if (w.isFinite() && w >= 0.5) return w
+            }
+
+            // Priority 2: battery sysfs (µA × µV — more accurate than BatteryManager on many devices)
+            val batCurrentUa = readSysfsLong(listOf(
+                "/sys/class/power_supply/battery/current_now",
+                "/sys/class/power_supply/bms/current_now",
+            ))
+            val batVoltageUv = readSysfsLong(listOf(
+                "/sys/class/power_supply/battery/voltage_now",
+                "/sys/class/power_supply/bms/voltage_now",
+            ))
+            if (batCurrentUa != null && batVoltageUv != null && batVoltageUv > 0) {
+                val w = abs(batCurrentUa) / 1_000_000.0 * batVoltageUv / 1_000_000.0
+                if (w.isFinite() && w >= 0.5) return w
+            }
+
+            // Priority 3: BatteryManager + intent voltage fallback
             val bm = getSystemService(Context.BATTERY_SERVICE) as BatteryManager
-            val currentMicroA = bm.getLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)
-            if (currentMicroA == Long.MIN_VALUE) return null
-            val batteryIntent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            val currentUa = bm.getLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)
+            if (currentUa == Long.MIN_VALUE) return null
+            val intent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
                 ?: return null
-            val voltageMv = batteryIntent.getIntExtra(BatteryManager.EXTRA_VOLTAGE, -1)
+            val voltageMv = intent.getIntExtra(BatteryManager.EXTRA_VOLTAGE, -1)
             if (voltageMv <= 0) return null
-            val watts = abs(currentMicroA) / 1_000_000.0 * voltageMv / 1000.0
-            if (watts.isFinite() && watts >= 0) watts else null
+            val w = abs(currentUa) / 1_000_000.0 * voltageMv / 1000.0
+            if (w.isFinite() && w >= 0) w else null
         } catch (_: Throwable) {
             null
         }
     }
 
-    private fun readChargeFullUah(): Long? {
-        val candidates = listOf(
+    private fun collectPowerDebug(): String {
+        val sb = StringBuilder()
+        val bm = getSystemService(Context.BATTERY_SERVICE) as BatteryManager
+        val intent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+
+        sb.appendLine("=== BatteryManager ===")
+        sb.appendLine("CURRENT_NOW: ${bm.getLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)} µA")
+        sb.appendLine("CURRENT_AVG: ${bm.getLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_AVERAGE)} µA")
+        sb.appendLine("VOLTAGE(intent): ${intent?.getIntExtra(BatteryManager.EXTRA_VOLTAGE, -1)} mV")
+
+        val sysfsPaths = listOf(
+            "/sys/class/power_supply/battery/current_now",
+            "/sys/class/power_supply/battery/voltage_now",
+            "/sys/class/power_supply/bms/current_now",
+            "/sys/class/power_supply/bms/voltage_now",
+            "/sys/class/power_supply/usb/current_now",
+            "/sys/class/power_supply/usb/voltage_now",
+            "/sys/class/power_supply/usb/input_current_now",
+            "/sys/class/power_supply/ac/current_now",
+            "/sys/class/power_supply/ac/voltage_now",
             "/sys/class/power_supply/battery/charge_full",
-            "/sys/class/power_supply/battery/charge_full_design",
-            "/sys/class/power_supply/bms/charge_full"
+            "/sys/class/power_supply/battery/charge_counter",
         )
-        for (p in candidates) {
+        sb.appendLine("\n=== sysfs ===")
+        for (path in sysfsPaths) {
+            val v = try { File(path).readText().trim() } catch (_: Throwable) { "DENIED" }
+            sb.appendLine("${path.substringAfterLast('/')}: $v")
+        }
+        return sb.toString()
+    }
+
+    private fun readSysfsLong(paths: List<String>): Long? {
+        for (path in paths) {
             try {
-                val v = File(p).readText().trim().toLongOrNull() ?: continue
-                if (v > 0) return v
-            } catch (_: Throwable) {
-            }
+                val v = File(path).readText().trim().toLongOrNull() ?: continue
+                if (v != 0L) return v
+            } catch (_: Throwable) {}
         }
         return null
     }
+
+    private fun readChargeFullUah(): Long? = readSysfsLong(listOf(
+        "/sys/class/power_supply/battery/charge_full",
+        "/sys/class/power_supply/battery/charge_full_design",
+        "/sys/class/power_supply/bms/charge_full",
+    ))
 
     private fun isKioskActive(): Boolean {
         val am = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
