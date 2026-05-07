@@ -47,6 +47,9 @@ class _ChargerScreenState extends State<ChargerScreen>
   Timer? _powerTimer;
   double? _powerWatts;
 
+  int _debugTapCount = 0;
+  DateTime _lastDebugTap = DateTime(0);
+
   static const _rotFastDuration = Duration(seconds: 4);
   static const _rotSlowDuration = Duration(seconds: 20);
   static const _breathFastDuration = Duration(milliseconds: 2400);
@@ -212,6 +215,22 @@ class _ChargerScreenState extends State<ChargerScreen>
     }
   }
 
+  void _handlePointerDown() {
+    final now = DateTime.now();
+    if (now.difference(_lastDebugTap) < const Duration(milliseconds: 500)) {
+      _debugTapCount++;
+      if (_debugTapCount >= 6) {
+        _debugTapCount = 0;
+        _showPowerDebug();
+        return;
+      }
+    } else {
+      _debugTapCount = 1;
+    }
+    _lastDebugTap = now;
+    _onHoldStart();
+  }
+
   void _onHoldStart() {
     _exitHoldTimer?.cancel();
     _progressTicker?.cancel();
@@ -328,7 +347,7 @@ class _ChargerScreenState extends State<ChargerScreen>
       child: Scaffold(
         backgroundColor: const Color(0xFF050D18),
         body: Listener(
-          onPointerDown: (_) => _onHoldStart(),
+          onPointerDown: (_) => _handlePointerDown(),
           onPointerUp: (_) => _onHoldCancel(),
           onPointerCancel: (_) => _onHoldCancel(),
           child: Stack(
@@ -400,15 +419,12 @@ class _ChargerScreenState extends State<ChargerScreen>
                 right: 0,
                 bottom: 30,
                 child: Center(
-                  child: GestureDetector(
-                    onDoubleTap: _showPowerDebug,
-                    child: Text(
-                      '长按屏幕 3 秒退出',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.35),
-                        fontSize: 12,
-                        letterSpacing: 1.2,
-                      ),
+                  child: Text(
+                    '长按屏幕 3 秒退出',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.35),
+                      fontSize: 12,
+                      letterSpacing: 1.2,
                     ),
                   ),
                 ),
